@@ -1,7 +1,8 @@
-import { Inject, CACHE_MANAGER, Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import * as moment from 'moment';
 import { Cache } from 'cache-manager';
 import { UserSession } from './user-session';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 
 @Injectable()
 export class UserSessionCache {
@@ -37,6 +38,7 @@ export class UserSessionCache {
 
   private async addNewUserSession(userName: string, allUserSessions: UserSession[]){
     const allSessions = [...allUserSessions??[], new UserSession(userName)];
+    console.log('add sessions', allSessions);
      await this.cacheManager.set(
         this.key,
         allSessions,
@@ -53,6 +55,7 @@ export class UserSessionCache {
     const results =  (await this.cacheManager.get(
         this.key,
       )) as UserSession[];
+      console.log('get all active:', results);
     return results?.filter(x => x.IsConnected());
   }
 
@@ -66,3 +69,4 @@ export class UserSessionCache {
     }
   }
 }
+

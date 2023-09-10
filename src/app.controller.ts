@@ -1,5 +1,5 @@
 import { Controller, Get, Param, Post, Sse } from '@nestjs/common';
-import { Observable, fromEvent, map, interval } from 'rxjs';
+import { Observable, fromEvent, map, interval, switchMap } from 'rxjs';
 import { AppService } from './app.service';
 import { UserSessionCache } from './user-session-cache';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -9,29 +9,29 @@ export class AppController {
   constructor(private userSessionCache: UserSessionCache, private eventEmitter: EventEmitter2) {}
 
   @Post('join/:userName')
-  join(@Param('userName') userName: string) {
-    this.userSessionCache.addOrUpdate(userName);
+  async join(@Param('userName') userName: string) {
+    await this.userSessionCache.addOrUpdate(userName);
+    this.eventEmitter.emit('join', userName);
   }
 
   @Sse('join')
   boardcastJoin(): Observable<MessageEvent> {
     return fromEvent(this.eventEmitter, 'join').pipe(
-      map((data) => {
-        return new MessageEvent('new client join', { data: {userName: data} });
+      switchMap(async(_data) => {
+        const activeUsers = await this.userSessionCache.getAllActive();
+        return new MessageEvent('new client join', { data: activeUsers.map(x=> x.userName) });
       }),
     );
   }
 
-
-  @Sse('waitingromm/patients')
-  async allPatients(): Promise<Observable<MessageEvent<any>>> {
-    const activeUsers = await this.userSessionCache.getAllActive();
-    return interval(1000).pipe(map(() => ({data: activeUsers.map(x=> x.userName)} as MessageEvent)));
-
-    // return fromEvent(this.eventEmitter, 'join').pipe(
-    //   map((data) => {
-    //     return new MessageEvent('new client join', { data: {userName: data} });
-    //   }),
-    // );
+  @Sse('waitingroom')
+   allPatients(): Observable<MessageEvent<any>> {
+    return interval(1000).pipe(switchMap( async () => 
+    {
+      const activeUsers = await this.userSessionCache.getAllActive();
+      return {
+        data: activeUsers.map(x=> x.userName)
+      } as MessageEvent;
+    }));
   }
-}
+ }
